@@ -18,7 +18,7 @@ FROM payments;
 -- What is the composition of installments being made? (only applicable to credit cards)
 SELECT payment_installments, COUNT(payment_installments) AS count_installs
 FROM payments
-WHERE payment_type = 'credit_card' AND payment_installments >= 1
+WHERE payment_type = 'credit_card' AND payment_installments > 1
 GROUP BY payment_installments;
 
 -- What is the breakdown of repeat customers?
