@@ -40,7 +40,34 @@ WHERE p.payment_type = 'credit_card' AND p.payment_installments > 1
 AND DATE(order_purchase_timestamp) BETWEEN '2017-01-01' AND '2017-12-31'
 GROUP BY DATE(order_purchase_timestamp);
 
--- part 2: top 15 days.
+-- Total daily purchases made in 2017?
+SELECT DATE(order_purchase_timestamp) AS purchase_date, COUNT(*) AS total_orders_with_installments
+FROM orders o
+JOIN payments p ON o.order_id = p.order_id 
+WHERE DATE(order_purchase_timestamp) BETWEEN '2017-01-01' AND '2017-12-31'
+GROUP BY DATE(order_purchase_timestamp);
+
+-- part 2: combine.
+SELECT t1.purchase_date, t1.total_orders, t2.total_orders_with_installments
+FROM
+(
+    SELECT DATE(order_purchase_timestamp) AS purchase_date, COUNT(*) AS total_orders
+    FROM orders o
+    WHERE DATE(order_purchase_timestamp) BETWEEN '2017-01-01' AND '2017-12-31'
+    GROUP BY DATE(order_purchase_timestamp)
+) AS t1
+JOIN
+(
+    SELECT DATE(order_purchase_timestamp) AS purchase_date, COUNT(*) AS total_orders_with_installments
+    FROM orders o
+    JOIN payments p ON o.order_id = p.order_id 
+    WHERE p.payment_type = 'credit_card' AND p.payment_installments > 1
+    AND DATE(order_purchase_timestamp) BETWEEN '2017-01-01' AND '2017-12-31'
+    GROUP BY DATE(order_purchase_timestamp)
+) AS t2
+ON t1.purchase_date = t2.purchase_date;
+
+-- part 3: top 15 days of installments.
 SELECT DATE(order_purchase_timestamp) AS purchase_date, COUNT(*) AS total_orders_with_installments
 FROM orders o
 JOIN payments p ON o.order_id = p.order_id 
@@ -103,13 +130,6 @@ GROUP BY state, city, zip_code
 ORDER BY total_orders DESC
 LIMIT 10;
 
--- How does product description length play a role in sales?
-SELECT p.product_description_lenght, COUNT(order_id)
-FROM products p 
-JOIN order_items oi ON oi.product_id = p.product_id 
-GROUP BY 1
-ORDER BY 2 DESC
-
 -- How many sellers are there on the site?
 SELECT COUNT(DISTINCT seller_id) AS total_sellers
 FROM sellers;
@@ -120,7 +140,33 @@ FROM sellers
 GROUP BY state
 ORDER BY seller_count DESC;
 
--- Reviews on Black Friday? Were people happy with their purchases?
-SELECT COUNT(*) AS total_reviews, AVG(review_score) AS average_review_score
-FROM order_reviews
-WHERE DATE(review_creation_date) = '2017-11-24';
+-- Review ratings on Black Friday? Were people happy with their purchases?
+SELECT review_score, COUNT(*) AS review_count
+FROM order_reviews orev
+JOIN orders o ON o.order_id = orev.order_id
+WHERE DATE(o.order_purchase_timestamp) = '2017-11-24'
+GROUP BY review_score;
+
+-- Calculate CSAT (customer satisfaction score).
+SELECT AVG(review_score) AS average_csat
+FROM order_reviews or2 
+WHERE review_score IS NOT NULL;
+
+-- Rating per category. 
+SELECT cnt.product_category_name_english, AVG(review_score) AS average_csat
+FROM order_reviews or2 
+JOIN order_items oi ON oi.order_id = or2.order_id 
+JOIN  products p ON p.product_id = oi.product_id 
+JOIN category_name_translation cnt ON cnt.product_category_name = p.product_category_name 
+GROUP BY 1
+ORDER BY average_csat DESC;
+
+-- AVG rating per state.
+SELECT customer_state, AVG(review_score) AS average_csat
+FROM order_reviews or2 
+JOIN orders o ON o.order_id = or2.order_id 
+JOIN customers c ON c.customer_id = o.customer_id 
+GROUP BY customer_state
+ORDER BY average_csat DESC;
+
+
